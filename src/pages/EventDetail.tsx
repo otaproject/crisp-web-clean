@@ -286,6 +286,12 @@ const EventDetail = () => {
         <div className="space-y-6">
           {sortedShifts.map(shift => {
             const coverage = calculateShiftCoverage(shift);
+            // Verifica se tutti gli slot sono assegnati
+            const allSlotsAssigned = shift.operatorIds.every(operatorId => 
+              operatorId && operatorId.trim() !== ""
+            );
+            // Il pulsante Copri è visibile solo se tutti gli slot sono assegnati E ci sono ore scoperte
+            const shouldShowCopriButton = allSlotsAssigned && !coverage.isCovered;
             
             return (
               <div key={shift.id} className="rounded-lg border border-border overflow-hidden bg-background">
@@ -307,17 +313,19 @@ const EventDetail = () => {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-1 bg-orange-500/10 text-orange-600 px-3 py-1 rounded-full text-sm font-medium">
-                            ⚠ {formatUncoveredTime(coverage.uncoveredMinutes)} scoperto
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => addSlotToShift(shift.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Copri
-                          </Button>
+                           <div className="flex items-center gap-1 bg-orange-500/10 text-orange-600 px-3 py-1 rounded-full text-sm font-medium">
+                             ⚠ {formatUncoveredTime(coverage.uncoveredMinutes)} scoperto
+                           </div>
+                           {shouldShowCopriButton && (
+                             <Button
+                               size="sm"
+                               onClick={() => addSlotToShift(shift.id)}
+                               className="bg-green-600 hover:bg-green-700 text-white"
+                             >
+                               <Plus className="h-4 w-4 mr-1" />
+                               Copri
+                             </Button>
+                           )}
                         </>
                       )}
                       <Button
