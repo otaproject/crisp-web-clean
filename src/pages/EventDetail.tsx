@@ -39,8 +39,7 @@ const EventDetail = () => {
   const addSlotToShift = useAppStore(s => s.addSlotToShift);
   
   // State for individual row time editing - each row has its own independent times
-  const [rowTimes, setRowTimes] = useState<{[key: string]: {startTime: string, endTime: string}}>({});
-  const [editingTimes, setEditingTimes] = useState<string | null>(null);
+  const [slotTimes, setSlotTimes] = useState<{[key: string]: {startTime: string, endTime: string}}>({});
   const shifts = useAppStore(s => s.getShiftsByEvent(id!));
   const clientName = useMemo(() => clients.find(c => c.id === event?.clientId)?.name, [clients, event]);
   const brandName = useMemo(() => brands.find(b => b.id === event?.brandId)?.name, [brands, event]);
@@ -134,14 +133,36 @@ const EventDetail = () => {
     return arr;
   }, [shifts, sort]);
 
-  // Calcola la copertura di un turno
+  // Calcola la copertura di un turno usando gli orari effettivi per-slot
   const calculateShiftCoverage = (shift: any) => {
     const shiftStartTime = new Date(`2000-01-01T${shift.startTime}`);
     const shiftEndTime = new Date(`2000-01-01T${shift.endTime}`);
     const shiftMinutes = (shiftEndTime.getTime() - shiftStartTime.getTime()) / (1000 * 60);
     
-    const assignedSlots = shift.operatorIds.filter((id: string) => id && id.trim() !== "");
-    const uncoveredMinutes = Math.max(0, shiftMinutes * (shift.requiredOperators - assignedSlots.length));
+    let totalCoveredMinutes = 0;
+    
+    shift.operatorIds.forEach((operatorId: string, slotIndex: number) => {
+      if (operatorId && operatorId.trim() !== "") {
+        const slotKey = `${shift.id}-${slotIndex}`;
+        const slotTime = slotTimes[slotKey];
+        
+        const startTime = slotTime?.startTime || shift.startTime;
+        const endTime = slotTime?.endTime || shift.endTime;
+        
+        const slotStartTime = new Date(`2000-01-01T${startTime}`);
+        const slotEndTime = new Date(`2000-01-01T${endTime}`);
+        
+        // Calculate overlap between slot time and shift time
+        const effectiveStart = new Date(Math.max(slotStartTime.getTime(), shiftStartTime.getTime()));
+        const effectiveEnd = new Date(Math.min(slotEndTime.getTime(), shiftEndTime.getTime()));
+        
+        if (effectiveEnd > effectiveStart) {
+          totalCoveredMinutes += (effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60);
+        }
+      }
+    });
+    
+    const uncoveredMinutes = Math.max(0, shiftMinutes - totalCoveredMinutes);
     
     return {
       isCovered: uncoveredMinutes === 0,
@@ -363,22 +384,52 @@ const EventDetail = () => {
                           id={`turn-${shift.id}-${slotIndex}`}
                           className="hover:bg-muted/50"
                         >
-                          <TableCell>
-                            <input
-                              type="time"
-                              value={shift.startTime}
-                              onChange={(e) => updateShiftTime(shift.id, { startTime: e.target.value })}
-                              className="px-3 py-1 border border-input rounded text-sm bg-background"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <input
-                              type="time"
-                              value={shift.endTime}
-                              onChange={(e) => updateShiftTime(shift.id, { endTime: e.target.value })}
-                              className="px-3 py-1 border border-input rounded text-sm bg-background"
-                            />
-                          </TableCell>
+                           <TableCell>
+                             {(() => {
+                               const slotKey = `${shift.id}-${slotIndex}`;
+                               const currentTime = slotTimes[slotKey]?.startTime || shift.startTime;
+                               return (
+                                 <input
+                                   type="time"
+                                   value={currentTime}
+                                   onChange={(e) => {
+                                     setSlotTimes(prev => ({
+                                       ...prev,
+                                       [slotKey]: {
+                                         ...prev[slotKey],
+                                         startTime: e.target.value,
+                                         endTime: prev[slotKey]?.endTime || shift.endTime
+                                       }
+                                     }));
+                                   }}
+                                   className="px-3 py-1 border border-input rounded text-sm bg-background"
+                                 />
+                               );
+                             })()}
+                           </TableCell>
+                           <TableCell>
+                             {(() => {
+                               const slotKey = `${shift.id}-${slotIndex}`;
+                               const currentTime = slotTimes[slotKey]?.endTime || shift.endTime;
+                               return (
+                                 <input
+                                   type="time"
+                                   value={currentTime}
+                                   onChange={(e) => {
+                                     setSlotTimes(prev => ({
+                                       ...prev,
+                                       [slotKey]: {
+                                         ...prev[slotKey],
+                                         startTime: prev[slotKey]?.startTime || shift.startTime,
+                                         endTime: e.target.value
+                                       }
+                                     }));
+                                   }}
+                                   className="px-3 py-1 border border-input rounded text-sm bg-background"
+                                 />
+                               );
+                             })()}
+                           </TableCell>
                           <TableCell>
                             {isAssigned ? (
                               <div className="flex items-center gap-2">
