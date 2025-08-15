@@ -36,6 +36,7 @@ const EventDetail = () => {
   const updateShiftTime = useAppStore(s => s.updateShiftTime);
   const updateShiftActivityType = useAppStore(s => s.updateShiftActivityType);
   const deleteShift = useAppStore(s => s.deleteShift);
+  const addSlotToShift = useAppStore(s => s.addSlotToShift);
   
   // State for individual row time editing - each row has its own independent times
   const [rowTimes, setRowTimes] = useState<{[key: string]: {startTime: string, endTime: string}}>({});
@@ -132,6 +133,30 @@ const EventDetail = () => {
     });
     return arr;
   }, [shifts, sort]);
+
+  // Calcola la copertura di un turno
+  const calculateShiftCoverage = (shift: any) => {
+    const shiftStartTime = new Date(`2000-01-01T${shift.startTime}`);
+    const shiftEndTime = new Date(`2000-01-01T${shift.endTime}`);
+    const shiftMinutes = (shiftEndTime.getTime() - shiftStartTime.getTime()) / (1000 * 60);
+    
+    const assignedSlots = shift.operatorIds.filter((id: string) => id && id.trim() !== "");
+    const uncoveredMinutes = Math.max(0, shiftMinutes * (shift.requiredOperators - assignedSlots.length));
+    
+    return {
+      isCovered: uncoveredMinutes === 0,
+      uncoveredMinutes
+    };
+  };
+
+  const formatUncoveredTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
+    }
+    return `${mins}m`;
+  };
 
   return <main className="container py-8">
       <Helmet>
@@ -258,186 +283,180 @@ const EventDetail = () => {
             </div>
           </div>
         </div>
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleSort('date')} className="px-0">
-                    <span className="mr-2">Data</span>
-                    {sort.key !== 'date' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleSort('startTime')} className="px-0">
-                    <span className="mr-2">Ora Inizio</span>
-                    {sort.key !== 'startTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleSort('endTime')} className="px-0">
-                    <span className="mr-2">Ora Fine</span>
-                    {sort.key !== 'endTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
-                  </Button>
-                </TableHead>
-                <TableHead>Tipologia Attività</TableHead>
-                <TableHead>Operatore</TableHead>
-                <TableHead>TL</TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead>Azioni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedShifts.map(s => {
-                // Show one row for each operator slot (assigned or empty)
-                return s.operatorIds.map((operatorId, slotIndex) => {
-                  const isAssigned = operatorId && operatorId.trim() !== "";
-                  const assignedOperatorsCount = s.operatorIds.filter(id => id && id.trim() !== "").length;
-                  
-                  return (
-                    <TableRow 
-                      key={`${s.id}-slot-${slotIndex}`}
-                      id={`turn-${s.id}-${slotIndex}`}
-                      className="even:bg-muted transition-all duration-300 hover:bg-muted/80"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span>{`${s.date.split("-").reverse().join("/")}`}</span>
-                          {slotIndex === 0 && (
-                            <span className="operator-count text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                              {assignedOperatorsCount}/{s.requiredOperators}
-                            </span>
-                          )}
+        <div className="space-y-6">
+          {sortedShifts.map(shift => {
+            const coverage = calculateShiftCoverage(shift);
+            
+            return (
+              <div key={shift.id} className="rounded-lg border border-border overflow-hidden bg-background">
+                {/* Intestazione turno */}
+                <div className="bg-muted/50 p-4 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="font-medium text-lg">
+                        Turno del {shift.date.split("-").reverse().join("/")} {shift.startTime} – {shift.endTime}
+                      </h3>
+                      <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded">
+                        {shift.activityType || "Non specificato"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {coverage.isCovered ? (
+                        <div className="flex items-center gap-1 bg-green-500/10 text-green-600 px-3 py-1 rounded-full text-sm font-medium">
+                          ✓ OK
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={s.startTime}
-                            onChange={(e) => updateShiftTime(s.id, { startTime: e.target.value })}
-                            className="px-3 py-1 border border-input rounded text-sm bg-background"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={s.endTime}
-                            onChange={(e) => updateShiftTime(s.id, { endTime: e.target.value })}
-                            className="px-3 py-1 border border-input rounded text-sm bg-background"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center text-sm text-muted-foreground bg-muted px-3 py-2 rounded">
-                          {s.activityType || "Non specificato"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {isAssigned ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{getOperatorName(operatorId)}</span>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => {
-                                const shift = sortedShifts.find(shift => shift.id === s.id);
-                                if (shift) {
-                                  removeOperator(s.id, operatorId);
-                                  // Se non ci sono più operatori assegnati, rimuovi l'intero turno
-                                  const remainingOperators = shift.operatorIds.filter(id => id && id.trim() !== "" && id !== operatorId);
-                                  if (remainingOperators.length === 0) {
-                                    deleteShift(s.id);
-                                  }
-                                }
-                              }}
-                              aria-label={`Rimuovi ${getOperatorName(operatorId)}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => {
-                                setCurrentShift(s.id);
-                                setCurrentSlotIndex(slotIndex);
-                                setAssignOpen(true);
-                              }}
-                              aria-label={`Modifica operatore ${getOperatorName(operatorId)}`}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1 bg-orange-500/10 text-orange-600 px-3 py-1 rounded-full text-sm font-medium">
+                            ⚠ {formatUncoveredTime(coverage.uncoveredMinutes)} scoperto
                           </div>
-                        ) : (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                              setCurrentShift(s.id);
-                              setCurrentSlotIndex(slotIndex);
-                              setAssignOpen(true);
-                            }}
+                          <Button
+                            size="sm"
+                            onClick={() => addSlotToShift(shift.id)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
                           >
-                            <UserPlus className="h-4 w-4" />
-                            Assegna
+                            <Plus className="h-4 w-4 mr-1" />
+                            Copri
                           </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {isAssigned ? (
-                          <Checkbox
-                            checked={s.teamLeaderId === operatorId}
-                            onCheckedChange={() => handleToggleTeamLeader(s.id, operatorId, s.teamLeaderId === operatorId)}
-                            aria-label={s.teamLeaderId === operatorId ? "Rimuovi come team leader" : "Imposta come team leader"}
-                          />
-                        ) : "-"}
-                      </TableCell>
-                        <TableCell>
-                           {s.notes && s.notes.trim() !== "" ? (
-                             <Button 
-                               size="sm" 
-                               variant="ghost" 
-                               onClick={() => {
-                                 setEditingNotes(s.id);
-                                 setTempNotes(s.notes || "");
-                               }}
-                               aria-label="Visualizza/Modifica note"
-                               title={s.notes}
-                             >
-                               <FileText className="h-4 w-4" />
-                             </Button>
-                           ) : (
-                             "-"
-                           )}
-                         </TableCell>
-                         <TableCell>
-                           {slotIndex === 0 && (
-                             <Button
-                               variant="ghost"
-                               size="sm"
-                               onClick={() => deleteShift(s.id)}
-                               className="text-destructive hover:text-destructive"
-                               aria-label="Elimina intero turno"
-                             >
-                               <Trash2 className="h-4 w-4" />
-                             </Button>
-                           )}
-                         </TableCell>
-                     </TableRow>
-                   );
-                 });
-              })}
-              {sortedShifts.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    Nessun turno pianificato. Crea il primo turno.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                        </>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteShift(shift.id)}
+                        className="text-destructive hover:text-destructive"
+                        aria-label="Elimina intero turno"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabella slot operatori */}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ora Inizio</TableHead>
+                      <TableHead>Ora Fine</TableHead>
+                      <TableHead>Operatore</TableHead>
+                      <TableHead>TL</TableHead>
+                      <TableHead>Note</TableHead>
+                      <TableHead>Azioni</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {shift.operatorIds.map((operatorId, slotIndex) => {
+                      const isAssigned = operatorId && operatorId.trim() !== "";
+                      
+                      return (
+                        <TableRow 
+                          key={`${shift.id}-slot-${slotIndex}`}
+                          id={`turn-${shift.id}-${slotIndex}`}
+                          className="hover:bg-muted/50"
+                        >
+                          <TableCell>
+                            <input
+                              type="time"
+                              value={shift.startTime}
+                              onChange={(e) => updateShiftTime(shift.id, { startTime: e.target.value })}
+                              className="px-3 py-1 border border-input rounded text-sm bg-background"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <input
+                              type="time"
+                              value={shift.endTime}
+                              onChange={(e) => updateShiftTime(shift.id, { endTime: e.target.value })}
+                              className="px-3 py-1 border border-input rounded text-sm bg-background"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {isAssigned ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{getOperatorName(operatorId)}</span>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    removeOperator(shift.id, operatorId);
+                                  }}
+                                  aria-label={`Rimuovi ${getOperatorName(operatorId)}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setCurrentShift(shift.id);
+                                    setCurrentSlotIndex(slotIndex);
+                                    setAssignOpen(true);
+                                  }}
+                                  aria-label={`Modifica operatore ${getOperatorName(operatorId)}`}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setCurrentShift(shift.id);
+                                  setCurrentSlotIndex(slotIndex);
+                                  setAssignOpen(true);
+                                }}
+                              >
+                                <UserPlus className="h-4 w-4" />
+                                Assegna
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isAssigned ? (
+                              <Checkbox
+                                checked={shift.teamLeaderId === operatorId}
+                                onCheckedChange={() => handleToggleTeamLeader(shift.id, operatorId, shift.teamLeaderId === operatorId)}
+                                aria-label={shift.teamLeaderId === operatorId ? "Rimuovi come team leader" : "Imposta come team leader"}
+                              />
+                            ) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {shift.notes && shift.notes.trim() !== "" ? (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => {
+                                  setEditingNotes(shift.id);
+                                  setTempNotes(shift.notes || "");
+                                }}
+                                aria-label="Visualizza/Modifica note"
+                                title={shift.notes}
+                              >
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {/* Actions for individual slot removal will be handled in the operator column */}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            );
+          })}
+          
+          {sortedShifts.length === 0 && (
+            <div className="text-center text-muted-foreground py-8 border border-dashed border-border rounded-lg">
+              Nessun turno pianificato. Crea il primo turno.
+            </div>
+          )}
         </div>
       </section>
 

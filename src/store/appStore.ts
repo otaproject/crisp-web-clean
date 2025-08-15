@@ -90,6 +90,7 @@ interface AppState {
   createShift: (data: Omit<Shift, "id" | "operatorIds"> & { operatorIds?: ID[] }) => Shift;
   assignOperators: (shiftId: ID, operatorIds: ID[]) => void;
   setOperatorSlot: (shiftId: ID, slotIndex: number, operatorId: ID) => void;
+  addSlotToShift: (shiftId: ID) => void;
   removeOperator: (shiftId: ID, operatorId: ID) => void;
   replaceOperator: (shiftId: ID, oldOperatorId: ID, newOperatorId: ID) => void;
   setTeamLeader: (shiftId: ID, operatorId: ID) => void;
@@ -180,6 +181,16 @@ export const useAppStore = create<AppState>()(
             newOperatorIds[slotIndex] = operatorId;
             return { ...s, operatorIds: newOperatorIds };
           }),
+        }));
+      },
+
+      addSlotToShift: (shiftId) => {
+        set((state) => ({
+          shifts: state.shifts.map((s) =>
+            s.id === shiftId
+              ? { ...s, operatorIds: [...s.operatorIds, ""], requiredOperators: s.requiredOperators + 1 }
+              : s
+          ),
         }));
       },
 
