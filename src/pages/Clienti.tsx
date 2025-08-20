@@ -312,13 +312,13 @@ const Clienti = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {selectedClient.contactPersons.length === 0 ? (
+                    {!selectedClient.contactPersons || selectedClient.contactPersons.length === 0 ? (
                       <p className="text-muted-foreground text-center py-4">
                         Nessun referente aggiunto
                       </p>
                     ) : (
                       <div className="space-y-3">
-                        {selectedClient.contactPersons.map((contact) => (
+                        {selectedClient.contactPersons?.map((contact) => (
                           <div key={contact.id} className="p-3 border rounded-lg">
                             <div className="flex items-center justify-between">
                               <div>
@@ -444,7 +444,7 @@ const Clienti = () => {
                             </div>
                              <div className="space-y-2">
                                <p className="text-sm font-medium text-muted-foreground">Indirizzi:</p>
-                               {brand.addresses.map((address) => (
+                               {brand.addresses?.map((address) => (
                                  <div key={address.id} className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded">
                                    <Input
                                      value={address.address}
