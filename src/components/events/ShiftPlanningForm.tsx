@@ -127,9 +127,9 @@ const ShiftPlanningForm = ({ onSubmit, onReset }: ShiftPlanningFormProps) => {
 
           {/* Note per turno */}
           <div className="space-y-2">
-            <Textarea
+            <Input
               placeholder="Inserisci note per il turno..."
-              className="h-11 resize-none"
+              className="h-11"
               {...form.register("notes")}
             />
           </div>

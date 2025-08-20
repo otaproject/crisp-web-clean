@@ -40,6 +40,9 @@ const EventDetail = () => {
   const [currentSlotIndex, setCurrentSlotIndex] = useState<number | null>(null);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [tempNotes, setTempNotes] = useState("");
+  const [slotTimes, setSlotTimes] = useState<Record<string, { startTime: string; endTime: string }>>({});
+  const [editingPhones, setEditingPhones] = useState<Record<string, string>>({});
+  const [slotNotes, setSlotNotes] = useState<Record<string, string>>({});
 
   if (!event) return (
     <main className="container py-8">
@@ -187,59 +190,71 @@ const EventDetail = () => {
         <link rel="canonical" href={`/events/${event.id}`} />
       </Helmet>
 
-      {/* Event info header */}
+      {/* Event info header and shift planning */}
       <section className="mb-8">
-        <h1 className="font-semibold mb-4 text-4xl">{event.title}</h1>
-        
-        {/* Event details under title */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">
-              {event.clientId && event.brandId ? 
-                `${clients.find(c => c.id === event.clientId)?.name || 'Cliente'} - ${brands.find(b => b.id === event.brandId)?.name || 'Brand'}` 
-                : 'Cliente - Brand non specificato'}
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <Input
-              value={event.address}
-              onChange={(e) => updateEvent(event.id, { address: e.target.value })}
-              className="flex-1 h-8 max-w-md"
-              placeholder="Indirizzo evento"
-            />
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>
-              {event.startDate && event.endDate ? (
-                event.startDate === event.endDate 
-                  ? event.startDate.split("-").reverse().join("/")
-                  : `DAL ${event.startDate.split("-").reverse().join("/")} AL ${event.endDate.split("-").reverse().join("/")}`
-              ) : 'Date non specificate'}
-            </span>
-          </div>
-          
-          {event.notes && (
-            <div className="flex items-start gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground mt-1" />
-              <span className="text-sm">{event.notes}</span>
+        <div className="flex gap-6">
+          {/* Left side - Event details (60%) */}
+          <div className="flex-1 max-w-[60%]">
+            <h1 className="font-semibold mb-4 text-4xl">{event.title}</h1>
+            
+            {/* Event details under title */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">
+                  {event.clientId && event.brandId ? 
+                    `${clients.find(c => c.id === event.clientId)?.name || 'Cliente'} - ${brands.find(b => b.id === event.brandId)?.name || 'Brand'}` 
+                    : 'Cliente - Brand non specificato'}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={event.address}
+                  onChange={(e) => updateEvent(event.id, { address: e.target.value })}
+                  className="flex-1 h-8 max-w-md"
+                  placeholder="Indirizzo evento"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {event.startDate && event.endDate ? (
+                    event.startDate === event.endDate 
+                      ? event.startDate.split("-").reverse().join("/")
+                      : `DAL ${event.startDate.split("-").reverse().join("/")} AL ${event.endDate.split("-").reverse().join("/")}`
+                  ) : 'Date non specificate'}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Input
+                  value={event.notes || ''}
+                  onChange={(e) => updateEvent(event.id, { notes: e.target.value })}
+                  className="flex-1 h-8 max-w-md"
+                  placeholder="Note evento"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Badge className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={event.activityCode || ''}
+                  onChange={(e) => updateEvent(event.id, { activityCode: e.target.value })}
+                  className="flex-1 h-8 max-w-md"
+                  placeholder="Codice attività"
+                />
+              </div>
             </div>
-          )}
-          
-          <div className="flex items-center gap-2">
-            <Badge className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Codice attività: {event.activityCode || 'Non specificato'}</span>
+          </div>
+
+          {/* Right side - Shift Planning Form (40%) */}
+          <div className="flex-1 max-w-[40%]">
+            <ShiftPlanningForm onSubmit={handleShiftSubmit} />
           </div>
         </div>
-      </section>
-
-      {/* Shift Planning Form */}
-      <section className="mb-8">
-        <ShiftPlanningForm onSubmit={handleShiftSubmit} />
       </section>
 
       {/* Shifts Table */}
@@ -360,27 +375,55 @@ const EventDetail = () => {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Phone className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{row.isAssigned ? getOperatorPhone(row.operatorId) : "-"}</span>
+                      {row.isAssigned ? (
+                        <Input
+                          value={editingPhones[`${row.id}-${row.slotIndex}`] || getOperatorPhone(row.operatorId)}
+                          onChange={(e) => setEditingPhones(prev => ({ ...prev, [`${row.id}-${row.slotIndex}`]: e.target.value }))}
+                          className="h-6 text-xs w-24"
+                          placeholder="Telefono"
+                        />
+                      ) : (
+                        <span className="text-sm">-</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <Input
                       type="time"
-                      value={row.startTime}
-                      onChange={(e) => updateShiftTime(row.id, { startTime: e.target.value })}
+                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime}
+                      onChange={(e) => setSlotTimes(prev => ({ 
+                        ...prev, 
+                        [`${row.id}-${row.slotIndex}`]: { 
+                          ...prev[`${row.id}-${row.slotIndex}`], 
+                          startTime: e.target.value,
+                          endTime: prev[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime
+                        }
+                      }))}
                       className="h-8 text-sm w-24"
                     />
                   </TableCell>
                   <TableCell>
                     <Input
                       type="time"
-                      value={row.endTime}
-                      onChange={(e) => updateShiftTime(row.id, { endTime: e.target.value })}
+                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime}
+                      onChange={(e) => setSlotTimes(prev => ({ 
+                        ...prev, 
+                        [`${row.id}-${row.slotIndex}`]: { 
+                          ...prev[`${row.id}-${row.slotIndex}`], 
+                          startTime: prev[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime,
+                          endTime: e.target.value
+                        }
+                      }))}
                       className="h-8 text-sm w-24"
                     />
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-medium">{calculateHours(row.startTime, row.endTime)}h</span>
+                    <span className="text-sm font-medium">
+                      {calculateHours(
+                        slotTimes[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime, 
+                        slotTimes[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime
+                      )}h
+                    </span>
                   </TableCell>
                   <TableCell>
                     {row.isAssigned ? (

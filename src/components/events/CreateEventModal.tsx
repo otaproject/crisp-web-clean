@@ -15,6 +15,7 @@ const FormSchema = z.object({
   clientId: z.string().min(1, "Seleziona un cliente"),
   brandId: z.string().min(1, "Seleziona un brand"),
   address: z.string().min(3, "Inserisci un indirizzo valido"),
+  customAddress: z.string().optional(),
   startDate: z.string().min(1, "Seleziona data di inizio"),
   endDate: z.string().min(1, "Seleziona data di fine"),
   notes: z.string().optional(),
@@ -36,11 +37,12 @@ const CreateEventModal = ({ open, onOpenChange }: CreateEventModalProps) => {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
-    defaultValues: { clientId: "", brandId: "", address: "", startDate: "", endDate: "", notes: "" },
+    defaultValues: { clientId: "", brandId: "", address: "", customAddress: "", startDate: "", endDate: "", notes: "" },
   });
 
   const selectedClientId = form.watch("clientId");
   const selectedBrandId = form.watch("brandId");
+  const selectedAddress = form.watch("address");
   const startDate = form.watch("startDate");
   
   // Filter brands based on selected client
@@ -56,10 +58,11 @@ const CreateEventModal = ({ open, onOpenChange }: CreateEventModalProps) => {
     }
   }, [startDate, form]);
   
-  // Set address when brand is selected
+  // Reset address when brand is selected
   React.useEffect(() => {
-    if (selectedBrand && selectedBrand.addresses.length > 0) {
-      form.setValue("address", selectedBrand.addresses[0].address);
+    if (selectedBrand) {
+      form.setValue("address", "");
+      form.setValue("customAddress", "");
     }
   }, [selectedBrand, form]);
   
@@ -75,11 +78,15 @@ const CreateEventModal = ({ open, onOpenChange }: CreateEventModalProps) => {
     const clientName = clients.find((c) => c.id === values.clientId)?.name || "Cliente";
     const brandName = brands.find((b) => b.id === values.brandId)?.name || "Brand";
     const title = `${brandName} - ${clientName}`;
+    
+    // Use custom address if "altro" is selected, otherwise use the selected address
+    const finalAddress = values.address === "altro" ? values.customAddress || "" : values.address;
+    
     const ev = createEvent({ 
       title, 
       clientId: values.clientId, 
       brandId: values.brandId, 
-      address: values.address,
+      address: finalAddress,
       startDate: values.startDate,
       endDate: values.endDate,
       notes: values.notes 
@@ -140,12 +147,40 @@ const CreateEventModal = ({ open, onOpenChange }: CreateEventModalProps) => {
 
           <div className="space-y-2">
             <Label>Indirizzo</Label>
-            <Input
-              placeholder="Via Roma 1, Milano"
-              {...form.register("address")}
-            />
+            {selectedBrand ? (
+              <>
+                <Select onValueChange={(v) => form.setValue("address", v)}>
+                  <SelectTrigger aria-label="Indirizzo">
+                    <SelectValue placeholder="Seleziona indirizzo" />
+                  </SelectTrigger>
+                  <SelectContent className="pointer-events-auto">
+                    {selectedBrand.addresses?.map((addr) => (
+                      <SelectItem key={addr.id} value={addr.address}>
+                        {addr.address}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="altro">Altro...</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedAddress === "altro" && (
+                  <Input
+                    placeholder="Inserisci indirizzo personalizzato"
+                    {...form.register("customAddress")}
+                  />
+                )}
+              </>
+            ) : (
+              <Input
+                placeholder="Seleziona prima un brand"
+                disabled
+                {...form.register("address")}
+              />
+            )}
             {form.formState.errors.address && (
               <p className="text-sm text-destructive">{form.formState.errors.address.message}</p>
+            )}
+            {form.formState.errors.customAddress && (
+              <p className="text-sm text-destructive">{form.formState.errors.customAddress.message}</p>
             )}
           </div>
 
