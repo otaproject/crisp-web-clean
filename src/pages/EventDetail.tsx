@@ -44,6 +44,34 @@ const EventDetail = () => {
   const [editingPhones, setEditingPhones] = useState<Record<string, string>>({});
   const [slotNotes, setSlotNotes] = useState<Record<string, string>>({});
 
+  // Inline editing states
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [tempValues, setTempValues] = useState<Record<string, any>>({});
+
+  const handleStartEdit = (field: string, currentValue: any) => {
+    setEditingField(field);
+    setTempValues({ ...tempValues, [field]: currentValue });
+  };
+
+  const handleSaveField = (field: string) => {
+    const value = tempValues[field];
+    if (field === 'address') {
+      updateEvent(event.id, { address: value });
+    } else if (field === 'startDate') {
+      updateEvent(event.id, { startDate: value });
+    } else if (field === 'endDate') {
+      updateEvent(event.id, { endDate: value });
+    } else if (field === 'activityCode') {
+      updateEvent(event.id, { activityCode: value });
+    }
+    setEditingField(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setTempValues({});
+  };
+
   if (!event) return (
     <main className="container py-8">
       <p className="text-muted-foreground">Evento non trovato.</p>
@@ -137,16 +165,21 @@ const EventDetail = () => {
     }
   };
 
-  const handleDuplicateShift = (shift: any, operatorId: string) => {
+  const handleDuplicateShift = (shift: any) => {
+    // Get actual times from slot overrides or default shift times
+    const slotKey = `${shift.id}-${shift.slotIndex}`;
+    const actualStartTime = slotTimes[slotKey]?.startTime || shift.startTime;
+    const actualEndTime = slotTimes[slotKey]?.endTime || shift.endTime;
+    
     createShift({
       eventId: event.id,
       date: shift.date,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
+      startTime: actualStartTime,
+      endTime: actualEndTime,
       operatorIds: [""], // No operator assigned to duplicate
       activityType: shift.activityType,
       requiredOperators: 1,
-      notes: shift.notes
+      notes: undefined // Don't copy notes
     });
   };
 
@@ -211,57 +244,132 @@ const EventDetail = () => {
             
             {/* Event details under title */}
             <div className="space-y-4">
+              {/* Address field */}
               <div className="flex items-center gap-3">
                 <MapPin className="h-5 w-5" style={{ color: '#72AD97', backgroundColor: 'transparent' }} />
-                <Input
-                  value={event.address}
-                  onChange={(e) => updateEvent(event.id, { address: e.target.value })}
-                  className="flex-1 h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
-                  placeholder="Viale Montenapeoleone 10, Milano"
-                />
+                <div className="flex-1 flex items-center gap-2">
+                  {editingField === 'address' ? (
+                    <>
+                      <Input
+                        value={tempValues.address || ''}
+                        onChange={(e) => setTempValues({ ...tempValues, address: e.target.value })}
+                        className="flex-1 h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
+                        placeholder="Viale Montenapeoleone 10, Milano"
+                        autoFocus
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => handleSaveField('address')}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 py-2">{event.address || 'Indirizzo non specificato'}</span>
+                      <Button variant="ghost" size="sm" onClick={() => handleStartEdit('address', event.address)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
               
+              {/* Date fields */}
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5" style={{ color: '#72AD97', backgroundColor: 'transparent' }} />
                 <div className="flex-1">
-                  <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={event.startDate || ''}
-                      onChange={(e) => updateEvent(event.id, { startDate: e.target.value })}
-                      className="h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
-                      placeholder="Data inizio"
-                    />
-                    <span className="self-center text-muted-foreground">al</span>
-                    <Input
-                      type="date"
-                      value={event.endDate || ''}
-                      onChange={(e) => updateEvent(event.id, { endDate: e.target.value })}
-                      className="h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
-                      placeholder="Data fine"
-                    />
+                  <div className="flex gap-2 items-center">
+                    {/* Start Date */}
+                    <div className="flex items-center gap-2">
+                      {editingField === 'startDate' ? (
+                        <>
+                          <Input
+                            type="date"
+                            value={tempValues.startDate || ''}
+                            onChange={(e) => setTempValues({ ...tempValues, startDate: e.target.value })}
+                            className="h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="sm" onClick={() => handleSaveField('startDate')}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="py-2">{event.startDate || 'Data non specificata'}</span>
+                          <Button variant="ghost" size="sm" onClick={() => handleStartEdit('startDate', event.startDate)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    
+                    <span className="text-muted-foreground">al</span>
+                    
+                    {/* End Date */}
+                    <div className="flex items-center gap-2">
+                      {editingField === 'endDate' ? (
+                        <>
+                          <Input
+                            type="date"
+                            value={tempValues.endDate || ''}
+                            onChange={(e) => setTempValues({ ...tempValues, endDate: e.target.value })}
+                            className="h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="sm" onClick={() => handleSaveField('endDate')}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="py-2">{event.endDate || 'Data non specificata'}</span>
+                          <Button variant="ghost" size="sm" onClick={() => handleStartEdit('endDate', event.endDate)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5" style={{ color: '#72AD97', backgroundColor: 'transparent' }} />
-                <Input
-                  value={event.notes || ''}
-                  onChange={(e) => updateEvent(event.id, { notes: e.target.value })}
-                  className="flex-1 h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
-                  placeholder="Necessità di GPG..."
-                />
-              </div>
-              
+              {/* Activity Code field */}
               <div className="flex items-center gap-3">
                 <Badge className="h-5 w-5" style={{ color: '#72AD97', backgroundColor: 'transparent' }} />
-                <Input
-                  value={event.activityCode || ''}
-                  onChange={(e) => updateEvent(event.id, { activityCode: e.target.value })}
-                  className="flex-1 h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
-                  placeholder="Codice attività"
-                />
+                <div className="flex-1 flex items-center gap-2">
+                  {editingField === 'activityCode' ? (
+                    <>
+                      <Input
+                        value={tempValues.activityCode || ''}
+                        onChange={(e) => setTempValues({ ...tempValues, activityCode: e.target.value })}
+                        className="flex-1 h-10 border-0 border-b border-border/30 rounded-none focus:border-primary bg-transparent"
+                        placeholder="Codice attività"
+                        autoFocus
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => handleSaveField('activityCode')}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 py-2">{event.activityCode || 'Codice non specificato'}</span>
+                      <Button variant="ghost" size="sm" onClick={() => handleStartEdit('activityCode', event.activityCode)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -290,6 +398,18 @@ const EventDetail = () => {
                   </Button>
                 </TableHead>
                 <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleSort('startTime')} className="px-0">
+                    <span className="mr-2">ORA INIZIO</span>
+                    {sort.key !== 'startTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleSort('endTime')} className="px-0">
+                    <span className="mr-2">ORA FINE</span>
+                    {sort.key !== 'endTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
+                  </Button>
+                </TableHead>
+                <TableHead>
                   <Button variant="ghost" size="sm" onClick={() => toggleSort('activityType')} className="px-0">
                     <span className="mr-2">TIPOLOGIA ATTIVITÀ</span>
                     {sort.key !== 'activityType' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
@@ -302,18 +422,6 @@ const EventDetail = () => {
                   </Button>
                 </TableHead>
                 <TableHead>TEL</TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleSort('startTime')} className="px-0">
-                    <span className="mr-2">ORA INIZIO</span>
-                    {sort.key !== 'startTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleSort('endTime')} className="px-0">
-                    <span className="mr-2">ORA FINE</span>
-                    {sort.key !== 'endTime' ? <ArrowUpDown className="h-4 w-4 text-muted-foreground" /> : (sort.dir === 'asc' ? <ArrowUp className="h-4 w-4 text-muted-foreground" /> : <ArrowDown className="h-4 w-4 text-muted-foreground" />)}
-                  </Button>
-                </TableHead>
                 <TableHead>
                   <Button variant="ghost" size="sm" onClick={() => toggleSort('hours')} className="px-0">
                     <span className="mr-2">ORE TOTALI</span>
@@ -337,6 +445,36 @@ const EventDetail = () => {
                       value={row.date}
                       onChange={(e) => updateShiftTime(row.id, { startTime: row.startTime })}
                       className="h-8 text-sm"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="time"
+                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime}
+                      onChange={(e) => setSlotTimes(prev => ({ 
+                        ...prev, 
+                        [`${row.id}-${row.slotIndex}`]: { 
+                          ...prev[`${row.id}-${row.slotIndex}`], 
+                          startTime: e.target.value,
+                          endTime: prev[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime
+                        }
+                      }))}
+                      className="h-8 text-sm w-24"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="time"
+                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime}
+                      onChange={(e) => setSlotTimes(prev => ({ 
+                        ...prev, 
+                        [`${row.id}-${row.slotIndex}`]: { 
+                          ...prev[`${row.id}-${row.slotIndex}`], 
+                          startTime: prev[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime,
+                          endTime: e.target.value
+                        }
+                      }))}
+                      className="h-8 text-sm w-24"
                     />
                   </TableCell>
                   <TableCell>
@@ -404,36 +542,6 @@ const EventDetail = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="time"
-                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime}
-                      onChange={(e) => setSlotTimes(prev => ({ 
-                        ...prev, 
-                        [`${row.id}-${row.slotIndex}`]: { 
-                          ...prev[`${row.id}-${row.slotIndex}`], 
-                          startTime: e.target.value,
-                          endTime: prev[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime
-                        }
-                      }))}
-                      className="h-8 text-sm w-24"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="time"
-                      value={slotTimes[`${row.id}-${row.slotIndex}`]?.endTime || row.endTime}
-                      onChange={(e) => setSlotTimes(prev => ({ 
-                        ...prev, 
-                        [`${row.id}-${row.slotIndex}`]: { 
-                          ...prev[`${row.id}-${row.slotIndex}`], 
-                          startTime: prev[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime,
-                          endTime: e.target.value
-                        }
-                      }))}
-                      className="h-8 text-sm w-24"
-                    />
-                  </TableCell>
-                  <TableCell>
                     <span className="text-sm font-medium">
                       {calculateHours(
                         slotTimes[`${row.id}-${row.slotIndex}`]?.startTime || row.startTime, 
@@ -451,40 +559,49 @@ const EventDetail = () => {
                     ) : "-"}
                   </TableCell>
                   <TableCell>
-                    {slotNotes[`${row.id}-${row.slotIndex}`] || row.notes ? (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => {
-                          setEditingNotes(`${row.id}-${row.slotIndex}`);
-                          setTempNotes(slotNotes[`${row.id}-${row.slotIndex}`] || row.notes || "");
-                        }}
-                        aria-label="Visualizza/Modifica note"
-                        title={slotNotes[`${row.id}-${row.slotIndex}`] || row.notes}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => {
-                          setEditingNotes(`${row.id}-${row.slotIndex}`);
-                          setTempNotes("");
-                        }}
-                        aria-label="Aggiungi note"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {editingNotes === `${row.id}-${row.slotIndex}` ? (
+                        <>
+                          <Input
+                            value={tempNotes}
+                            onChange={(e) => setTempNotes(e.target.value)}
+                            className="h-8 text-sm flex-1"
+                            placeholder="Note turno"
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="sm" onClick={() => handleSaveNotes(`${row.id}-${row.slotIndex}`)}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={handleCancelEditNotes}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-sm flex-1">{slotNotes[`${row.id}-${row.slotIndex}`] || row.notes || '-'}</span>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => {
+                              setEditingNotes(`${row.id}-${row.slotIndex}`);
+                              setTempNotes(slotNotes[`${row.id}-${row.slotIndex}`] || row.notes || "");
+                            }}
+                            aria-label="Modifica note"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDuplicateShift(row, row.operatorId)}
-                        aria-label="Duplica turno"
+                        onClick={() => handleDuplicateShift(row)}
+                        aria-label="Copia turno"
+                        title="Copia turno (solo data, orari e tipologia attività)"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
