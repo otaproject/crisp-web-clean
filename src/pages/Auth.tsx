@@ -28,12 +28,19 @@ export default function Auth() {
   useEffect(() => {
     // Load operators for registration
     const loadOperators = async () => {
-      const { data } = await supabase
+      console.log('Loading operators...');
+      const { data, error } = await supabase
         .from('operators')
         .select('id, name, role, email')
         .order('name');
       
+      if (error) {
+        console.error('Error loading operators:', error);
+        return;
+      }
+      
       if (data) {
+        console.log('Operators loaded:', data);
         setOperators(data);
       }
     };
